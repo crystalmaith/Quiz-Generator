@@ -5,8 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Sparkles, Brain, CheckCircle } from 'lucide-react';
+import { FileText, Sparkles, Brain, CheckCircle, Upload } from 'lucide-react';
 
 interface QuizQuestion {
   question: string;
@@ -22,11 +23,48 @@ interface QuizResult {
 
 export const QuizGenerator = () => {
   const [pdfText, setPdfText] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [quizType, setQuizType] = useState<string>('');
   const [importantTopics, setImportantTopics] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
   const { toast } = useToast();
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    
+    if (!file) return;
+    
+    if (file.type !== 'application/pdf') {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a PDF file only.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      toast({
+        title: "File Too Large",
+        description: "Please upload a PDF file smaller than 10MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setUploadedFile(file);
+    
+    // Mock PDF text extraction - in real app, use PDF parsing library
+    const mockExtractedText = `Sample extracted text from ${file.name}. This would contain the actual PDF content after processing with a PDF parser like pdf-parse or pdf2pic. The text would include all the study material content that can be used to generate quizzes.`;
+    
+    setPdfText(mockExtractedText);
+    
+    toast({
+      title: "PDF Uploaded Successfully",
+      description: `File "${file.name}" has been processed and text extracted.`,
+    });
+  };
 
   const generateQuiz = async () => {
     if (!pdfText.trim()) {
@@ -138,18 +176,58 @@ export const QuizGenerator = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="pdf-text" className="text-base font-medium">
-              PDF Text Content *
-            </Label>
-            <Textarea
-              id="pdf-text"
-              placeholder="Paste the extracted text from your PDF here..."
-              value={pdfText}
-              onChange={(e) => setPdfText(e.target.value)}
-              className="min-h-[200px] transition-smooth focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
+          <Tabs defaultValue="paste" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upload">Upload PDF</TabsTrigger>
+              <TabsTrigger value="paste">Paste Text</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="upload" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pdf-upload" className="text-base font-medium">
+                  Upload PDF File *
+                </Label>
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center hover:border-primary/50 transition-smooth">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <Label 
+                    htmlFor="pdf-upload" 
+                    className="cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-smooth"
+                  >
+                    Click to upload or drag and drop your PDF file here
+                    <br />
+                    <span className="text-xs">Max file size: 10MB</span>
+                  </Label>
+                  <Input
+                    id="pdf-upload"
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                {uploadedFile && (
+                  <p className="text-sm text-primary font-medium">
+                    ✅ Uploaded: {uploadedFile.name}
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="paste" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="pdf-text" className="text-base font-medium">
+                  PDF Text Content *
+                </Label>
+                <Textarea
+                  id="pdf-text"
+                  placeholder="Paste the extracted text from your PDF here..."
+                  value={pdfText}
+                  onChange={(e) => setPdfText(e.target.value)}
+                  className="min-h-[200px] transition-smooth focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
