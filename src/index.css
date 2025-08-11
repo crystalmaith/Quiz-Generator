@@ -8,89 +8,103 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Icy Blue Theme - Maithili's AI Quiz Generator */
+    --background: 202 33% 94%;  /* Frosty white-blue */
+    --foreground: 202 45% 15%;  /* Dark blue-gray */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;  /* Pure white for cards */
+    --card-foreground: 202 45% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 202 45% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 202 63% 60%;  /* Ocean blue */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 202 81% 80%;  /* Pastel blue */
+    --secondary-foreground: 202 45% 15%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 202 40% 88%;  /* Light icy blue */
+    --muted-foreground: 202 20% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 202 70% 85%;  /* Soft blue accent */
+    --accent-foreground: 202 45% 15%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 202 30% 85%;  /* Subtle blue border */
+    --input: 0 0% 100%;  /* White inputs */
+    --ring: 202 63% 60%;  /* Ocean blue focus ring */
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;  /* Slightly more rounded for modern feel */
 
-    --sidebar-background: 0 0% 98%;
+    /* Custom gradients for icy theme */
+    --gradient-primary: linear-gradient(135deg, hsl(202 63% 60%), hsl(202 81% 80%));
+    --gradient-background: linear-gradient(180deg, hsl(202 33% 94%), hsl(202 40% 88%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100% / 0.9), hsl(202 40% 95% / 0.7));
+    
+    /* Ice crystal shadows */
+    --shadow-crystal: 0 8px 32px hsl(202 63% 60% / 0.15);
+    --shadow-soft: 0 4px 16px hsl(202 40% 70% / 0.1);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 202 33% 96%;
+    --sidebar-foreground: 202 45% 15%;
+    --sidebar-primary: 202 63% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 202 40% 88%;
+    --sidebar-accent-foreground: 202 45% 15%;
+    --sidebar-border: 202 30% 85%;
+    --sidebar-ring: 202 63% 60%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark mode with deep icy blues */
+    --background: 202 60% 8%;  /* Deep ocean blue */
+    --foreground: 202 30% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 202 50% 12%;  /* Dark blue cards */
+    --card-foreground: 202 30% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 202 50% 12%;
+    --popover-foreground: 202 30% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 202 81% 80%;  /* Bright pastel blue in dark mode */
+    --primary-foreground: 202 60% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 202 40% 20%;  /* Dark blue secondary */
+    --secondary-foreground: 202 30% 95%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 202 40% 16%;
+    --muted-foreground: 202 20% 70%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 202 50% 25%;
+    --accent-foreground: 202 30% 95%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 202 40% 20%;
+    --input: 202 50% 12%;
+    --ring: 202 81% 80%;
+
+    /* Dark mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(202 81% 80%), hsl(202 63% 60%));
+    --gradient-background: linear-gradient(180deg, hsl(202 60% 8%), hsl(202 50% 12%));
+    --gradient-card: linear-gradient(145deg, hsl(202 50% 12% / 0.9), hsl(202 40% 16% / 0.7));
+    
+    --sidebar-background: 202 50% 10%;
+    --sidebar-foreground: 202 30% 90%;
+    --sidebar-primary: 202 81% 80%;
+    --sidebar-primary-foreground: 202 60% 8%;
+    --sidebar-accent: 202 40% 18%;
+    --sidebar-accent-foreground: 202 30% 90%;
+    --sidebar-border: 202 40% 20%;
+    --sidebar-ring: 202 81% 80%;
   }
 }
 
@@ -101,5 +115,45 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    background: var(--gradient-background);
+    min-height: 100vh;
+  }
+}
+
+/* Custom utility classes for the icy theme */
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-crystal {
+    box-shadow: var(--shadow-crystal);
+  }
+  
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+  
+  .glass-effect {
+    backdrop-filter: blur(12px);
+    background: hsl(0 0% 100% / 0.7);
+    border: 1px solid hsl(0 0% 100% / 0.2);
+  }
+  
+  .dark .glass-effect {
+    background: hsl(202 50% 12% / 0.7);
+    border: 1px solid hsl(202 40% 20% / 0.3);
   }
 }
