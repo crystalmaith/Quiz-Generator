@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { FileText, Sparkles, Brain, CheckCircle, Upload } from 'lucide-react';
 
 interface QuizQuestion {
@@ -55,15 +56,37 @@ export const QuizGenerator = () => {
     
     setUploadedFile(file);
     
-    // Mock PDF text extraction - in real app, use PDF parsing library
-    const mockExtractedText = `Sample extracted text from ${file.name}. This would contain the actual PDF content after processing with a PDF parser like pdf-parse or pdf2pic. The text would include all the study material content that can be used to generate quizzes.`;
-    
-    setPdfText(mockExtractedText);
-    
-    toast({
-      title: "PDF Uploaded Successfully",
-      description: `File "${file.name}" has been processed and text extracted.`,
-    });
+    try {
+      toast({
+        title: "Processing PDF...",
+        description: "Extracting text from your PDF file.",
+      });
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const { data, error } = await supabase.functions.invoke('extract-pdf-text', {
+        body: formData,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setPdfText(data.text);
+      
+      toast({
+        title: "PDF Processed Successfully! ✅",
+        description: `Text extracted from "${file.name}". Ready to generate quiz.`,
+      });
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      toast({
+        title: "PDF Processing Failed",
+        description: "Failed to extract text from PDF. Please try again or paste text manually.",
+        variant: "destructive",
+      });
+    }
   };
 
   const generateQuiz = async () => {
@@ -87,67 +110,33 @@ export const QuizGenerator = () => {
 
     setIsGenerating(true);
     
-    // Simulate AI processing - in a real app, this would call an AI API
     try {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Mock quiz generation based on type
-      const mockQuestions: QuizQuestion[] = [];
-      
-      if (quizType === 'mcq') {
-        mockQuestions.push(
-          {
-            question: "What is the main concept discussed in the provided text?",
-            options: ["Algorithm optimization", "Data structures", "Machine learning", "Web development"],
-            correctAnswer: "Algorithm optimization",
-            type: 'mcq'
-          },
-          {
-            question: "Which technique is most emphasized for solving complex problems?",
-            options: ["Recursion", "Dynamic programming", "Greedy algorithms", "Divide and conquer"],
-            correctAnswer: "Dynamic programming",
-            type: 'mcq'
-          }
-        );
-      } else if (quizType === 'answer') {
-        mockQuestions.push(
-          {
-            question: "Explain the key principles discussed in the text and their practical applications. (5 marks)",
-            type: 'answer'
-          },
-          {
-            question: "Analyze the advantages and disadvantages of the main approach mentioned. (5 marks)",
-            type: 'answer'
-          }
-        );
-      } else {
-        mockQuestions.push(
-          {
-            question: "The ________ algorithm is used for finding optimal solutions in complex problems.",
-            type: 'fillblank'
-          },
-          {
-            question: "Time complexity of the discussed approach is ________ in the worst case.",
-            type: 'fillblank'
-          }
-        );
+      const { data, error } = await supabase.functions.invoke('generate-quiz', {
+        body: {
+          pdfText,
+          quizType,
+          importantTopics
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      const mockSummary = "This document discusses fundamental algorithms and data structures, focusing on optimization techniques and their practical applications in computer science. Key concepts include time complexity analysis, space optimization, and algorithmic efficiency principles.";
-
       setQuizResult({
-        questions: mockQuestions,
-        summary: mockSummary
+        questions: data.questions,
+        summary: data.summary
       });
 
       toast({
         title: "Quiz Generated Successfully! ✨",
-        description: `Generated ${mockQuestions.length} questions from your PDF content.`,
+        description: `Generated ${data.questions.length} AI-powered questions from your PDF content.`,
       });
     } catch (error) {
+      console.error('Quiz generation error:', error);
       toast({
         title: "Generation Failed",
-        description: "Failed to generate quiz. Please try again.",
+        description: "Failed to generate quiz. Please check your content and try again.",
         variant: "destructive",
       });
     } finally {

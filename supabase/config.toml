@@ -1,1 +1,7 @@
 project_id = "jskwydedzpzqdpustrai"
+
+[functions.generate-quiz]
+verify_jwt = false
+
+[functions.extract-pdf-text]
+verify_jwt = false
