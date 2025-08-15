@@ -5,181 +5,189 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Comprehensive PDF text extraction function
+// Robust PDF text extraction with decompression support
 async function extractTextFromPDF(pdfBuffer: ArrayBuffer): Promise<string> {
   try {
-    console.log('Starting comprehensive PDF text extraction...');
+    console.log('Starting robust PDF text extraction...');
     
     const uint8Array = new Uint8Array(pdfBuffer);
     console.log(`PDF buffer size: ${uint8Array.length} bytes`);
     
-    // Convert to string using latin1 for better binary handling
-    const pdfString = new TextDecoder('latin1').decode(uint8Array);
+    // Convert to string for pattern matching
+    const pdfString = Array.from(uint8Array)
+      .map(byte => String.fromCharCode(byte))
+      .join('');
     
     let extractedText = '';
     let debugInfo = {
       textObjects: 0,
-      tjOperators: 0,
-      streamObjects: 0,
-      plainTextMatches: 0
+      streams: 0,
+      decompressed: 0,
+      plainText: 0
     };
     
-    // Method 1: Extract from BT...ET text objects with all text operators
-    console.log('Method 1: Extracting from text objects...');
-    const textObjectRegex = /BT\s+([\s\S]*?)\s+ET/g;
-    let match;
+    console.log('Extracting text from PDF objects...');
     
-    while ((match = textObjectRegex.exec(pdfString)) !== null) {
-      debugInfo.textObjects++;
-      const textBlock = match[1];
-      const blockText = extractFromTextBlock(textBlock);
-      if (blockText) {
-        extractedText += blockText + ' ';
-      }
-    }
+    // Method 1: Extract from PDF objects with proper stream handling
+    const objRegex = /(\d+)\s+(\d+)\s+obj\s*([\s\S]*?)\s*endobj/g;
+    let objMatch;
     
-    // Method 2: Direct Tj operator extraction
-    console.log('Method 2: Extracting Tj operators...');
-    const tjRegex = /\(((?:[^\\()]|\\[\\()nrtbf]|\\[0-7]{1,3})*)\)\s*Tj/g;
-    while ((match = tjRegex.exec(pdfString)) !== null) {
-      debugInfo.tjOperators++;
-      const text = decodePDFText(match[1]);
-      if (text && isReadableText(text)) {
-        extractedText += text + ' ';
-      }
-    }
-    
-    // Method 3: TJ array extraction
-    console.log('Method 3: Extracting TJ arrays...');
-    const tjArrayRegex = /\[\s*((?:\([^)]*\)\s*(?:-?\d+(?:\.\d+)?\s*)?)*)\]\s*TJ/g;
-    while ((match = tjArrayRegex.exec(pdfString)) !== null) {
-      const arrayContent = match[1];
-      const textMatches = arrayContent.match(/\(([^)]*)\)/g);
-      if (textMatches) {
-        textMatches.forEach(textMatch => {
-          const text = decodePDFText(textMatch.slice(1, -1));
-          if (text && isReadableText(text)) {
-            extractedText += text + ' ';
-          }
-        });
-      }
-    }
-    
-    // Method 4: Stream content extraction
-    console.log('Method 4: Extracting from streams...');
-    const streamRegex = /stream\s*\n([\s\S]*?)\nendstream/g;
-    while ((match = streamRegex.exec(pdfString)) !== null) {
-      debugInfo.streamObjects++;
-      const streamContent = match[1];
+    while ((objMatch = objRegex.exec(pdfString)) !== null) {
+      const objContent = objMatch[3];
       
-      // Look for text patterns in uncompressed streams
-      const streamText = extractFromStream(streamContent);
-      if (streamText) {
-        extractedText += streamText + ' ';
-      }
-    }
-    
-    // Method 5: Look for plain readable text patterns
-    console.log('Method 5: Looking for plain text patterns...');
-    const plainTextRegex = /[A-Za-z]{3,}[\w\s.,;:!?'"()&-]{20,}/g;
-    const plainMatches = pdfString.match(plainTextRegex);
-    if (plainMatches) {
-      debugInfo.plainTextMatches = plainMatches.length;
-      plainMatches.slice(0, 50).forEach(match => {
-        if (isReadableText(match) && !match.includes('endobj') && !match.includes('stream')) {
-          extractedText += match + ' ';
+      // Look for streams in objects
+      const streamMatch = objContent.match(/stream\s*\n([\s\S]*?)\nendstream/);
+      if (streamMatch) {
+        debugInfo.streams++;
+        const streamData = streamMatch[1];
+        
+        // Try to decompress if it has filters
+        let decompressedText = '';
+        if (objContent.includes('/FlateDecode')) {
+          decompressedText = await tryDecompressFlate(streamData);
+          if (decompressedText) {
+            debugInfo.decompressed++;
+            extractedText += extractTextFromDecompressed(decompressedText) + ' ';
+          }
+        } else {
+          // Try direct text extraction from uncompressed stream
+          decompressedText = extractTextFromRawStream(streamData);
+          if (decompressedText) {
+            extractedText += decompressedText + ' ';
+          }
         }
-      });
-    }
-    
-    // Method 6: Alternative byte-by-byte extraction for edge cases
-    if (extractedText.length < 50) {
-      console.log('Method 6: Trying byte-by-byte extraction...');
-      const alternativeText = extractAlternativeMethod(uint8Array);
-      if (alternativeText.length > extractedText.length) {
-        extractedText = alternativeText;
+      }
+      
+      // Also check object content directly for text
+      const directText = extractDirectText(objContent);
+      if (directText) {
+        extractedText += directText + ' ';
       }
     }
     
-    // Clean and deduplicate
-    extractedText = cleanAndDeduplicateText(extractedText);
+    // Method 2: Look for text objects (BT...ET) in the entire document
+    console.log('Extracting from text objects...');
+    const textObjRegex = /BT\s+([\s\S]*?)\s+ET/g;
+    let textMatch;
     
-    console.log('Debug info:', debugInfo);
-    console.log(`Final extracted text length: ${extractedText.length}`);
-    console.log(`First 300 characters: ${extractedText.substring(0, 300)}`);
+    while ((textMatch = textObjRegex.exec(pdfString)) !== null) {
+      debugInfo.textObjects++;
+      const textContent = textMatch[1];
+      const extractedFromObj = extractTextFromTextObject(textContent);
+      if (extractedFromObj) {
+        extractedText += extractedFromObj + ' ';
+      }
+    }
+    
+    // Method 3: Direct search for readable text patterns
+    console.log('Looking for direct text patterns...');
+    const readableText = extractReadableTextPatterns(pdfString);
+    if (readableText) {
+      debugInfo.plainText++;
+      extractedText += readableText + ' ';
+    }
+    
+    // Method 4: Try alternative encodings for the entire content
+    if (extractedText.length < 50) {
+      console.log('Trying alternative text extraction methods...');
+      const altText = extractWithAlternativeEncodings(uint8Array);
+      if (altText.length > extractedText.length) {
+        extractedText = altText;
+      }
+    }
+    
+    // Clean and process the final text
+    extractedText = cleanExtractedText(extractedText);
+    
+    console.log('Extraction debug info:', debugInfo);
+    console.log(`Final text length: ${extractedText.length}`);
+    console.log(`First 300 chars: ${extractedText.substring(0, 300)}`);
     
     if (extractedText.trim().length < 10) {
-      console.log('No readable text found. PDF may be image-based or encrypted.');
-      return 'This PDF appears to be image-based, encrypted, or uses a format not supported by this extractor. Please try copying and pasting the text manually, or use an OCR tool for image-based PDFs.';
+      return 'Unable to extract readable text from this PDF. It may be image-based, heavily compressed, or use unsupported encoding. Please try copying and pasting the text manually, or convert the PDF to a text-friendly format.';
     }
     
     return extractedText.trim();
     
   } catch (error) {
     console.error('PDF extraction error:', error);
-    return 'Error extracting text from PDF. Please try pasting the text manually.';
+    return 'Error extracting text from PDF: ' + error.message;
   }
 }
 
-function extractFromTextBlock(textBlock: string): string {
-  let text = '';
-  
-  // All PDF text showing operators
-  const operators = [
-    /\(([^)]*)\)\s*Tj/g,                    // Show text
-    /\(([^)]*)\)\s*'/g,                     // Move to next line and show text
-    /\(([^)]*)\)\s*"/g,                     // Set word and character spacing, move to next line, and show text
-    /\[((?:\([^)]*\)\s*(?:-?\d+(?:\.\d+)?\s*)?)*)\]\s*TJ/g,  // Show text with individual glyph positioning
-  ];
-  
-  operators.forEach(regex => {
-    let match;
-    while ((match = regex.exec(textBlock)) !== null) {
-      if (regex.source.includes('\\[')) {
-        // Handle TJ array
-        const arrayContent = match[1];
-        const textMatches = arrayContent.match(/\(([^)]*)\)/g);
-        if (textMatches) {
-          textMatches.forEach(tm => {
-            const decoded = decodePDFText(tm.slice(1, -1));
-            if (decoded && isReadableText(decoded)) {
-              text += decoded;
-            }
-          });
-        }
-      } else {
-        // Handle simple text
-        const decoded = decodePDFText(match[1]);
-        if (decoded && isReadableText(decoded)) {
-          text += decoded;
-        }
-      }
+// Try to decompress FlateDecode streams (basic implementation)
+async function tryDecompressFlate(streamData: string): Promise<string> {
+  try {
+    // Convert string back to bytes
+    const bytes = new Uint8Array(streamData.length);
+    for (let i = 0; i < streamData.length; i++) {
+      bytes[i] = streamData.charCodeAt(i);
     }
-  });
-  
-  return text;
+    
+    // Try to decompress using DecompressionStream if available
+    try {
+      const stream = new DecompressionStream('deflate');
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+      
+      writer.write(bytes);
+      writer.close();
+      
+      const chunks = [];
+      let result;
+      while (!(result = await reader.read()).done) {
+        chunks.push(result.value);
+      }
+      
+      const decompressed = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+      let offset = 0;
+      for (const chunk of chunks) {
+        decompressed.set(chunk, offset);
+        offset += chunk.length;
+      }
+      
+      return new TextDecoder('latin1').decode(decompressed);
+    } catch (e) {
+      console.log('Decompression failed, trying raw extraction:', e.message);
+      return '';
+    }
+  } catch (error) {
+    console.log('FlateDecode decompression failed:', error.message);
+    return '';
+  }
 }
 
-function extractFromStream(streamContent: string): string {
+// Extract text from decompressed stream content
+function extractTextFromDecompressed(content: string): string {
   let text = '';
   
-  // Look for text patterns that might be in uncompressed streams
+  // Look for text operators in decompressed content
   const patterns = [
-    /\(([^)]{2,})\)/g,                      // Parentheses enclosed text
-    /BT\s+([\s\S]*?)\s+ET/g,               // Text objects within streams
+    /BT\s+([\s\S]*?)\s+ET/g,  // Text objects
+    /\(((?:[^\\()]|\\[\\()nrtbf]|\\[0-7]{1,3})*)\)\s*Tj/g,  // Simple text
+    /\[((?:\([^)]*\)\s*(?:-?\d+(?:\.\d+)?\s*)?)*)\]\s*TJ/g,  // Array text
   ];
   
   patterns.forEach(pattern => {
     let match;
-    while ((match = pattern.exec(streamContent)) !== null) {
+    while ((match = pattern.exec(content)) !== null) {
       if (pattern.source.includes('BT')) {
-        // Extract from text object
-        const blockText = extractFromTextBlock(match[1]);
-        if (blockText) text += blockText + ' ';
+        text += extractTextFromTextObject(match[1]) + ' ';
+      } else if (pattern.source.includes('\\[')) {
+        // Handle TJ arrays
+        const arrayContent = match[1];
+        const textMatches = arrayContent.match(/\(([^)]*)\)/g);
+        if (textMatches) {
+          textMatches.forEach(tm => {
+            const decoded = decodePDFString(tm.slice(1, -1));
+            if (decoded && isValidText(decoded)) {
+              text += decoded + ' ';
+            }
+          });
+        }
       } else {
-        // Direct text extraction
-        const decoded = decodePDFText(match[1]);
-        if (decoded && isReadableText(decoded)) {
+        const decoded = decodePDFString(match[1]);
+        if (decoded && isValidText(decoded)) {
           text += decoded + ' ';
         }
       }
@@ -189,12 +197,141 @@ function extractFromStream(streamContent: string): string {
   return text;
 }
 
-function decodePDFText(text: string): string {
+// Extract text from raw stream data
+function extractTextFromRawStream(streamData: string): string {
+  let text = '';
+  
+  // Look for parentheses-enclosed text that might be readable
+  const textPattern = /\(([^)]{1,})\)/g;
+  let match;
+  
+  while ((match = textPattern.exec(streamData)) !== null) {
+    const decoded = decodePDFString(match[1]);
+    if (decoded && isValidText(decoded)) {
+      text += decoded + ' ';
+    }
+  }
+  
+  return text;
+}
+
+// Extract text from PDF text objects
+function extractTextFromTextObject(textContent: string): string {
+  let text = '';
+  
+  // All text showing operators
+  const operators = [
+    /\(((?:[^\\()]|\\[\\()nrtbf]|\\[0-7]{1,3})*)\)\s*Tj/g,
+    /\(((?:[^\\()]|\\[\\()nrtbf]|\\[0-7]{1,3})*)\)\s*'/g,
+    /\(((?:[^\\()]|\\[\\()nrtbf]|\\[0-7]{1,3})*)\)\s*"/g,
+    /\[((?:\([^)]*\)\s*(?:-?\d+(?:\.\d+)?\s*)?)*)\]\s*TJ/g,
+  ];
+  
+  operators.forEach(regex => {
+    let match;
+    while ((match = regex.exec(textContent)) !== null) {
+      if (regex.source.includes('\\[')) {
+        // Handle TJ array
+        const arrayContent = match[1];
+        const textMatches = arrayContent.match(/\(([^)]*)\)/g);
+        if (textMatches) {
+          textMatches.forEach(tm => {
+            const decoded = decodePDFString(tm.slice(1, -1));
+            if (decoded && isValidText(decoded)) {
+              text += decoded + ' ';
+            }
+          });
+        }
+      } else {
+        const decoded = decodePDFString(match[1]);
+        if (decoded && isValidText(decoded)) {
+          text += decoded + ' ';
+        }
+      }
+    }
+  });
+  
+  return text;
+}
+
+// Extract direct text from object content
+function extractDirectText(objContent: string): string {
+  let text = '';
+  
+  // Look for various text patterns
+  const patterns = [
+    /\/Title\s*\(([^)]+)\)/g,
+    /\/Subject\s*\(([^)]+)\)/g,
+    /\/Author\s*\(([^)]+)\)/g,
+    /\/Contents\s*\(([^)]+)\)/g,
+  ];
+  
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(objContent)) !== null) {
+      const decoded = decodePDFString(match[1]);
+      if (decoded && isValidText(decoded)) {
+        text += decoded + ' ';
+      }
+    }
+  });
+  
+  return text;
+}
+
+// Look for readable text patterns in the entire PDF
+function extractReadableTextPatterns(pdfString: string): string {
+  let text = '';
+  
+  // Look for sequences of readable characters
+  const readablePattern = /[A-Za-z][A-Za-z0-9\s.,;:!?'"()&-]{15,}/g;
+  const matches = pdfString.match(readablePattern);
+  
+  if (matches) {
+    const validMatches = matches
+      .filter(match => {
+        // Filter out PDF commands and binary data
+        return !match.includes('endobj') && 
+               !match.includes('stream') && 
+               !match.includes('xref') &&
+               !match.match(/^[0-9\s]+$/) &&
+               isValidText(match);
+      })
+      .slice(0, 100); // Limit to prevent overwhelming output
+    
+    text = validMatches.join(' ');
+  }
+  
+  return text;
+}
+
+// Try alternative encodings
+function extractWithAlternativeEncodings(uint8Array: Uint8Array): string {
+  const encodings = ['utf-8', 'latin1', 'ascii'];
+  let bestText = '';
+  
+  for (const encoding of encodings) {
+    try {
+      const decoded = new TextDecoder(encoding).decode(uint8Array);
+      const extracted = extractReadableTextPatterns(decoded);
+      
+      if (extracted.length > bestText.length) {
+        bestText = extracted;
+      }
+    } catch (e) {
+      // Encoding failed, continue with next
+    }
+  }
+  
+  return bestText;
+}
+
+// Decode PDF string with escape sequences
+function decodePDFString(text: string): string {
   if (!text) return '';
   
   try {
-    // Handle PDF escape sequences
-    let decoded = text
+    return text
       .replace(/\\n/g, '\n')
       .replace(/\\r/g, '\r')
       .replace(/\\t/g, '\t')
@@ -204,97 +341,39 @@ function decodePDFText(text: string): string {
       .replace(/\\'/g, "'")
       .replace(/\\"/g, '"')
       .replace(/\\([0-7]{1,3})/g, (_, octal) => {
-        const charCode = parseInt(octal, 8);
-        return charCode > 31 && charCode < 127 ? String.fromCharCode(charCode) : '';
+        const code = parseInt(octal, 8);
+        return code > 31 && code < 127 ? String.fromCharCode(code) : '';
+      })
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => {
+        return String.fromCharCode(parseInt(hex, 16));
       });
-    
-    // Handle Unicode escapes
-    decoded = decoded.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => {
-      return String.fromCharCode(parseInt(hex, 16));
-    });
-    
-    return decoded;
   } catch (e) {
     return text;
   }
 }
 
-function extractAlternativeMethod(uint8Array: Uint8Array): string {
-  let text = '';
-  let currentWord = '';
-  
-  // Extract readable ASCII sequences
-  for (let i = 0; i < Math.min(uint8Array.length, 500000); i++) {
-    const byte = uint8Array[i];
-    
-    if (byte >= 32 && byte <= 126) {
-      // Printable ASCII
-      currentWord += String.fromCharCode(byte);
-    } else if (byte === 10 || byte === 13 || byte === 9) {
-      // Line breaks and tabs
-      if (currentWord.length > 2 && isReadableText(currentWord)) {
-        text += currentWord + ' ';
-      }
-      currentWord = '';
-    } else {
-      // Non-printable byte
-      if (currentWord.length > 2 && isReadableText(currentWord)) {
-        text += currentWord + ' ';
-      }
-      currentWord = '';
-    }
-    
-    if (text.length > 10000) break; // Prevent excessive processing
-  }
-  
-  // Add final word
-  if (currentWord.length > 2 && isReadableText(currentWord)) {
-    text += currentWord;
-  }
-  
-  return text;
-}
-
-function isReadableText(text: string): boolean {
+// Check if text is valid readable content
+function isValidText(text: string): boolean {
   if (!text || text.length < 2) return false;
   
   // Must contain letters
   if (!/[a-zA-Z]/.test(text)) return false;
   
-  // Should not be mostly numbers or symbols
-  const alphaCount = (text.match(/[a-zA-Z]/g) || []).length;
-  const totalLength = text.length;
-  
-  if (alphaCount / totalLength < 0.3) return false;
+  // Should not be mostly control characters or symbols
+  const printableCount = (text.match(/[a-zA-Z0-9\s.,;:!?'"()&-]/g) || []).length;
+  if (printableCount / text.length < 0.5) return false;
   
   // Exclude common PDF artifacts
-  const artifacts = [
-    'endobj', 'endstream', 'stream', 'xref', 'trailer', 'startxref',
-    'obj', 'Type', 'Font', 'Width', 'Height', 'BitsPerComponent'
-  ];
-  
+  const artifacts = ['endobj', 'endstream', 'stream', 'xref', 'obj', 'Type', 'Font'];
   return !artifacts.some(artifact => text.includes(artifact));
 }
 
-function cleanAndDeduplicateText(text: string): string {
-  if (!text) return '';
-  
-  // Split into words and remove duplicates while preserving order
-  const words = text.split(/\s+/);
-  const uniqueWords: string[] = [];
-  const seen = new Set<string>();
-  
-  for (const word of words) {
-    const cleanWord = word.trim();
-    if (cleanWord && !seen.has(cleanWord.toLowerCase()) && isReadableText(cleanWord)) {
-      uniqueWords.push(cleanWord);
-      seen.add(cleanWord.toLowerCase());
-    }
-  }
-  
-  return uniqueWords.join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/\n+/g, '\n')
+// Clean and format extracted text
+function cleanExtractedText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')           // Normalize whitespace
+    .replace(/\n+/g, '\n')          // Normalize line breaks
+    .replace(/[^\x20-\x7E\n\r\t]/g, '') // Remove non-printable characters
     .trim();
 }
 
@@ -328,8 +407,7 @@ serve(async (req) => {
     const fileBuffer = await file.arrayBuffer();
     const extractedText = await extractTextFromPDF(fileBuffer);
     
-    console.log(`Extracted text length: ${extractedText.length} characters`);
-    console.log(`First 200 characters: ${extractedText.substring(0, 200)}...`);
+    console.log(`Final extracted text length: ${extractedText.length} characters`);
 
     return new Response(
       JSON.stringify({ 
